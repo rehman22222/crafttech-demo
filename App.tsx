@@ -710,7 +710,7 @@ const App: React.FC = () => {
     <SafeAreaView
       style={[
         styles.safe,
-        isMobileWeb && { paddingTop: 16 }, // try 20–24 if you want more
+        isMobileWeb && { paddingTop: 28}, // try 20–24 if you want more
       ]}
     >
       {/* PREMIUM HEADER */}
@@ -719,7 +719,7 @@ const App: React.FC = () => {
           styles.header,
           isMobileWeb && styles.headerMobileWeb,
           scrolled && styles.headerScrolled,
-          isMobileWeb && { top: 16 },
+          isMobileWeb && { top: 32 },
           {
             paddingHorizontal: navPadding,
             opacity: headerAnim,
