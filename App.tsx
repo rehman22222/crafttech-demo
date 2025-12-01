@@ -717,6 +717,7 @@ const App: React.FC = () => {
       <Animated.View
         style={[
           styles.header,
+          isMobileWeb && styles.headerMobileWeb,
           scrolled && styles.headerScrolled,
           {
             paddingHorizontal: navPadding,
@@ -1441,6 +1442,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     zIndex: 100,
     backgroundColor: 'transparent',
+  },
+  // Extra offset only for small-screen web (Android/iOS browsers).
+  // Applied conditionally via `isMobileWeb` so native apps keep
+  // their existing layout.
+  headerMobileWeb: {
+    top: 20,
   },
   headerScrolled: {
     backgroundColor: COLORS.bg,
