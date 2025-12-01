@@ -386,7 +386,7 @@ const App: React.FC = () => {
   const isDesktop = width >= 1024;
 
   // ✅ only for mobile web (Android/iOS browser)
-  const isMobileWeb = Platform.OS === "web" && width < 768;
+  const isMobileWeb = Platform.OS === "web" && isMobile;
 
   // Enhanced responsive values
   const sectionPadding = isDesktop ? 96 : isTablet ? 64 : 48;
@@ -719,6 +719,7 @@ const App: React.FC = () => {
           styles.header,
           isMobileWeb && styles.headerMobileWeb,
           scrolled && styles.headerScrolled,
+          isMobileWeb && { top: 16 },
           {
             paddingHorizontal: navPadding,
             opacity: headerAnim,
