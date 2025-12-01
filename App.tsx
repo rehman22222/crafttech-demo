@@ -170,6 +170,8 @@ export const scaleFont = (size: number, width: number) => {
   return size * 1.3;
 };
 
+
+
 /* -----------------------------------------------------
    GRADIENT VIEW COMPONENT (Fallback without expo-linear-gradient)
 ----------------------------------------------------- */
@@ -382,6 +384,9 @@ const App: React.FC = () => {
   const isMobile = width <= 768;
   const isTablet = width > 768 && width < 1024;
   const isDesktop = width >= 1024;
+
+  // ✅ only for mobile web (Android/iOS browser)
+  const isMobileWeb = Platform.OS === "web" && width < 768;
 
   // Enhanced responsive values
   const sectionPadding = isDesktop ? 96 : isTablet ? 64 : 48;
@@ -702,7 +707,12 @@ const App: React.FC = () => {
      PREMIUM RENDER
   ----------------------------------------------------- */
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={[
+        styles.safe,
+        isMobileWeb && { paddingTop: 16 }, // try 20–24 if you want more
+      ]}
+    >
       {/* PREMIUM HEADER */}
       <Animated.View
         style={[
