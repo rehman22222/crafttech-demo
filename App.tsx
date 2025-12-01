@@ -387,11 +387,13 @@ const App: React.FC = () => {
   const sectionPadding = isDesktop ? 96 : isTablet ? 64 : 48;
   const navPadding = isDesktop ? 40 : isTablet ? 24 : 16;
 
-  // Hero sizing
+  // Hero sizing - FIXED FOR BOTH WEB AND MOBILE
   const heroAspectRatio = 16 / 9;
   const heroHeight = isMobile
     ? Math.min(height * 0.75, 520)
-    : width / heroAspectRatio;
+    : isDesktop
+    ? Math.min(height * 0.85, 800) // Taller on desktop
+    : Math.min(width / heroAspectRatio, 600); // For tablet
 
   // Container style for all main sections
   const containerStyle = {
@@ -860,7 +862,7 @@ const App: React.FC = () => {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {/* PREMIUM HERO SECTION */}
+        {/* PREMIUM HERO SECTION - FIXED FOR WEB */}
         <View
           onLayout={handleSectionLayout("hero")}
           style={[
@@ -882,7 +884,7 @@ const App: React.FC = () => {
             shouldPlay
             isMuted
             isLooping
-            resizeMode={isMobile ? ResizeMode.COVER : ResizeMode.CONTAIN}
+            resizeMode={ResizeMode.COVER}
             onLoad={() => setVideoReady(true)}
             onError={(e) => console.log("Video error:", e)}
           />
@@ -1572,7 +1574,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
 
-  // PREMIUM HERO
+  // PREMIUM HERO - FIXED FOR BOTH WEB AND MOBILE
   hero: {
     position: "relative",
     width: "100%",
@@ -1581,10 +1583,14 @@ const styles = StyleSheet.create({
     marginVertical: 0,
   },    
   heroVideo: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     width: "100%",
     height: "100%",
-    alignSelf: "center",
-  },
+  } as any,
   heroOverlay: {
     position: "absolute",
     top: 0,
