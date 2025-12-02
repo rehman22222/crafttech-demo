@@ -18,13 +18,45 @@ import {
   Linking,
   Platform,
   Dimensions,
+  StatusBar,
 } from "react-native";
 import { Video, AVPlaybackSource, ResizeMode } from "expo-av";
 
 const CRAFTTECH_LOGO = require("./assets/crafttech-logo.png");
 
-/* Helper for native driver (safe on web) */
+/* -----------------------------------------------------
+   RESPONSIVE UTILITIES
+----------------------------------------------------- */
 const useDriver = Platform.OS !== "web";
+
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 1280;
+const MOBILE_BREAKPOINT = 768;
+const TABLET_BREAKPOINT = 1024;
+
+// Responsive scaler with fixed min/max boundaries
+export const scaleFont = (size: number, width: number): number => {
+  const baseWidth = 375;
+  const scaleFactor = Math.min(Math.max(width, MIN_WIDTH), MAX_WIDTH) / baseWidth;
+  
+  if (width < 380) return Math.max(size * 0.85, 10);
+  if (width < 480) return size * 0.95;
+  if (width < MOBILE_BREAKPOINT) return size;
+  if (width < TABLET_BREAKPOINT) return size * 1.1;
+  return size * 1.2;
+};
+
+// Responsive value generator
+const responsiveValue = <T,>(
+  mobile: T,
+  tablet: T,
+  desktop: T,
+  width: number
+): T => {
+  if (width < MOBILE_BREAKPOINT) return mobile;
+  if (width < TABLET_BREAKPOINT) return tablet;
+  return desktop;
+};
 
 /* -----------------------------------------------------
    TYPES
@@ -157,23 +189,8 @@ const TESTIMONIALS = [
   },
 ];
 
-// Enhanced responsive font scaler
-export const scaleFont = (size: number, width: number) => {
-  const baseWidth = 375;
-  const scaleFactor = width / baseWidth;
-  
-  if (width < 380) return Math.max(size * 0.82, 10);
-  if (width < 480) return size * 0.92;
-  if (width < 768) return size * 1.0;
-  if (width < 1024) return size * 1.12;
-  if (width < 1280) return size * 1.2;
-  return size * 1.3;
-};
-
-
-
 /* -----------------------------------------------------
-   GRADIENT VIEW COMPONENT (Fallback without expo-linear-gradient)
+   GRADIENT VIEW COMPONENT
 ----------------------------------------------------- */
 const GradientView: React.FC<{
   colors: string[];
@@ -181,7 +198,6 @@ const GradientView: React.FC<{
   children?: React.ReactNode;
 }> = ({ colors, style, children }) => {
   if (Platform.OS === 'web') {
-    // Web version using CSS gradient
     return (
       <View 
         style={[
@@ -196,7 +212,6 @@ const GradientView: React.FC<{
     );
   }
   
-  // Native version - fallback to solid color (first color in array)
   return (
     <View 
       style={[
@@ -213,7 +228,7 @@ const GradientView: React.FC<{
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 /* -----------------------------------------------------
-   SCROLL ANIMATION HOOK (WEB + NATIVE SCROLL AWARE)
+   SCROLL ANIMATION HOOK
 ----------------------------------------------------- */
 const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -222,7 +237,7 @@ const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
   const viewRef = useRef<View | null>(null);
 
   const animateIn = () => {
-    if (isVisible) return; // only once
+    if (isVisible) return;
     setIsVisible(true);
     Animated.timing(animValue, {
       toValue: 1,
@@ -233,13 +248,11 @@ const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
     }).start();
   };
 
-  // Called from the Animated.View
   const onLayout = (e: LayoutChangeEvent) => {
     setLayoutY(e.nativeEvent.layout.y);
   };
 
   useEffect(() => {
-    // 🌐 WEB: keep IntersectionObserver behavior
     if (Platform.OS === "web") {
       if (isVisible) return;
 
@@ -259,16 +272,13 @@ const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
       );
 
       if (viewRef.current) {
-        // @ts-ignore web-only
-        observer.observe(viewRef.current);
+        observer.observe(viewRef.current as any);
       }
 
       return () => observer.disconnect();
     }
 
-    // 📱 NATIVE: scroll-based trigger
     if (!scrollY) {
-      // fallback: just animate shortly after mount
       const t = setTimeout(() => {
         animateIn();
       }, 80);
@@ -284,12 +294,10 @@ const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
       if (isVisible || layoutY == null) return;
       const visibleBottom = scrollValue + screenHeight;
       if (visibleBottom >= layoutY + buffer) {
-        // element is within viewport + small buffer
         animateIn();
       }
     };
 
-    // initial check (e.g. SERVICES at top on first render)
     if (layoutY != null) {
       checkAndAnimate(0);
     }
@@ -325,10 +333,7 @@ const useScrollAnimation = (delay: number = 0, scrollY?: Animated.Value) => {
 };
 
 /* -----------------------------------------------------
-   ANIMATED COMPONENTS WITH SCROLL TRIGGER (IMPROVED)
------------------------------------------------------ */
-/* -----------------------------------------------------
-   ANIMATED COMPONENTS WITH SCROLL TRIGGER
+   ANIMATED COMPONENTS
 ----------------------------------------------------- */
 const ScrollAnimatedView: React.FC<{
   children: React.ReactNode;
@@ -373,6 +378,29 @@ const StaggeredScrollAnimation: React.FC<{
 };
 
 /* -----------------------------------------------------
+   RESPONSIVE CONTAINER COMPONENT
+----------------------------------------------------- */
+const ResponsiveContainer: React.FC<{
+  children: React.ReactNode;
+  style?: any;
+}> = ({ children, style }) => {
+  const { width } = useWindowDimensions();
+  
+  const containerStyle = {
+    width: "100%",
+    maxWidth: MAX_WIDTH,
+    alignSelf: "center" as const,
+    paddingHorizontal: responsiveValue(16, 24, 40, width),
+  };
+
+  return (
+    <View style={[containerStyle, style]}>
+      {children}
+    </View>
+  );
+};
+
+/* -----------------------------------------------------
    PREMIUM APP COMPONENT
 ----------------------------------------------------- */
 const App: React.FC = () => {
@@ -381,29 +409,20 @@ const App: React.FC = () => {
   const { width, height } = useWindowDimensions();
   const s = (size: number) => scaleFont(size, width);
 
-  const isMobile = width <= 768;
-  const isTablet = width > 768 && width < 1024;
-  const isDesktop = width >= 1024;
+  // Responsive breakpoints
+  const isMobile = width < MOBILE_BREAKPOINT;
+  const isTablet = width >= MOBILE_BREAKPOINT && width < TABLET_BREAKPOINT;
+  const isDesktop = width >= TABLET_BREAKPOINT;
 
-  // ✅ only for mobile web (Android/iOS browser)
-  const isMobileWeb = Platform.OS === "web" && isMobile;
-
-  // Enhanced responsive values
-  const sectionPadding = isDesktop ? 96 : isTablet ? 64 : 48;
-  const navPadding = isDesktop ? 40 : isTablet ? 24 : 16;
-
-  // Hero sizing
-  const heroAspectRatio = 16 / 9;
-  const heroHeight = isMobile
-    ? Math.min(height * 0.75, 520)
-    : width / heroAspectRatio;
-
-  // Container style for all main sections
-  const containerStyle = {
-    maxWidth: 1280,
-    width: "100%" as any,
-    alignSelf: "center" as const,
-  };
+  // Responsive values
+  const sectionPadding = responsiveValue(48, 64, 96, width);
+  const headerHeight = responsiveValue(60, 70, 80, width);
+  const heroHeight = responsiveValue(
+    Math.min(height * 0.75, 520),
+    Math.min(height * 0.85, 600),
+    Math.min(height * 0.9, 700),
+    width
+  );
 
   // STATE
   const [sectionPositions, setSectionPositions] = useState<Partial<Record<SectionKey, number>>>({});
@@ -424,7 +443,7 @@ const App: React.FC = () => {
   const currentSlide = HERO_SLIDES[activeSlideIndex];
 
   /* -----------------------------------------------------
-     PREMIUM HERO AUTOPLAY & ANIMATIONS
+     HERO AUTOPLAY & ANIMATIONS
   ----------------------------------------------------- */
   useEffect(() => {
     const interval = setInterval(() => {
@@ -452,13 +471,11 @@ const App: React.FC = () => {
   }, [activeSlideIndex, heroAnim, headerAnim]);
 
   /* -----------------------------------------------------
-     ENHANCED SCROLL HANDLER
+     SCROLL HANDLER
   ----------------------------------------------------- */
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     setScrolled(y > 100);
-    
-    // Trigger scroll animations
     scrollY.setValue(y);
   };
 
@@ -469,7 +486,7 @@ const App: React.FC = () => {
 
   const scrollToSection = (key: SectionKey) => {
     const y = sectionPositions[key] ?? 0;
-    scrollRef.current?.scrollTo({ y: y - 80, animated: true });
+    scrollRef.current?.scrollTo({ y: y - (headerHeight * 0.8), animated: true });
     setNavOpen(false);
     setOpenDropdown(null);
   };
@@ -506,7 +523,7 @@ const App: React.FC = () => {
     : PORTFOLIO_ITEMS.filter((i) => i.category === portfolioFilter);
 
   /* -----------------------------------------------------
-     PREMIUM NAV ITEMS
+     NAV ITEMS
   ----------------------------------------------------- */
   const centerNavItems = [
     {
@@ -574,13 +591,13 @@ const App: React.FC = () => {
   ----------------------------------------------------- */
   const ProfessionalFooter = () => (
     <View style={styles.footer}>
-      <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+      <ResponsiveContainer>
         <View style={styles.footerContent}>
           {/* Main Footer Grid */}
           <View style={[styles.footerGrid, isMobile && styles.footerGridMobile]}>
             
             {/* Brand Column */}
-            <View style={styles.footerColumn}>
+            <View style={[styles.footerColumn, isMobile && styles.footerColumnMobile]}>
               <View style={styles.footerBrand}>
                 <View style={styles.footerLogoContainer}>
                   <Image
@@ -589,13 +606,13 @@ const App: React.FC = () => {
                     resizeMode="contain"
                   />
                 </View>
-                <Text style={styles.footerTitle}>CraftTech</Text>
-                <Text style={styles.footerTagline}>
+                <Text style={[styles.footerTitle, isMobile && styles.footerTitleMobile]}>CraftTech</Text>
+                <Text style={[styles.footerTagline, isMobile && styles.footerTaglineMobile]}>
                   Building premium digital products for US startups, founders, and CTOs.
                 </Text>
                 
                 {/* Social Links */}
-                <View style={styles.socialLinks}>
+                <View style={[styles.socialLinks, isMobile && styles.socialLinksMobile]}>
                   <TouchableOpacity 
                     style={styles.socialLink}
                     onPress={() => Linking.openURL("https://twitter.com/crafttech")}
@@ -619,87 +636,87 @@ const App: React.FC = () => {
             </View>
 
             {/* Services Column */}
-            <View style={styles.footerColumn}>
-              <Text style={styles.footerColumnTitle}>Services</Text>
+            <View style={[styles.footerColumn, isMobile && styles.footerColumnMobile]}>
+              <Text style={[styles.footerColumnTitle, isMobile && styles.footerColumnTitleMobile]}>Services</Text>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>Web App Development</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Web App Development</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>Mobile App Development</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Mobile App Development</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>UI/UX Design</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>UI/UX Design</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>Cloud Engineering</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Cloud Engineering</Text>
               </TouchableOpacity>
             </View>
 
             {/* Work Column */}
-            <View style={styles.footerColumn}>
-              <Text style={styles.footerColumnTitle}>Work</Text>
+            <View style={[styles.footerColumn, isMobile && styles.footerColumnMobile]}>
+              <Text style={[styles.footerColumnTitle, isMobile && styles.footerColumnTitleMobile]}>Work</Text>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>Fintech</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Fintech</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>Healthcare</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Healthcare</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>E-commerce</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>E-commerce</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.footerLink}>
-                <Text style={styles.footerLinkText}>SaaS Platforms</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>SaaS Platforms</Text>
               </TouchableOpacity>
             </View>
 
             {/* Contact Column */}
-            <View style={styles.footerColumn}>
-              <Text style={styles.footerColumnTitle}>Contact</Text>
+            <View style={[styles.footerColumn, isMobile && styles.footerColumnMobile]}>
+              <Text style={[styles.footerColumnTitle, isMobile && styles.footerColumnTitleMobile]}>Contact</Text>
               <TouchableOpacity 
                 style={styles.footerLink}
                 onPress={() => scrollToSection("contact")}
               >
-                <Text style={styles.footerLinkText}>Start a Project</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>Start a Project</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.footerLink}
                 onPress={() => Linking.openURL("mailto:hello@crafttech.studio")}
               >
-                <Text style={styles.footerLinkText}>hello@crafttech.studio</Text>
+                <Text style={[styles.footerLinkText, isMobile && styles.footerLinkTextMobile]}>hello@crafttech.studio</Text>
               </TouchableOpacity>
-              <Text style={styles.contactHours}>
+              <Text style={[styles.contactHours, isMobile && styles.contactHoursMobile]}>
                 Mon – Fri • US & PK friendly hours
               </Text>
               
               {/* CTA Button */}
               <TouchableOpacity 
-                style={styles.footerCta}
+                style={[styles.footerCta, isMobile && styles.footerCtaMobile]}
                 onPress={() => scrollToSection("contact")}
               >
                 <GradientView
                   colors={[COLORS.neonSoft, COLORS.neon]}
                   style={styles.footerCtaGradient}
                 >
-                  <Text style={styles.footerCtaText}>Start your project</Text>
+                  <Text style={[styles.footerCtaText, isMobile && styles.footerCtaTextMobile]}>Start your project</Text>
                 </GradientView>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Footer Bottom */}
-          <View style={styles.footerBottom}>
+          <View style={[styles.footerBottom, isMobile && styles.footerBottomMobile]}>
             <View style={styles.footerDivider} />
-            <View style={[styles.footerBottomContent, isMobile && styles.footerBottomMobile]}>
-              <Text style={styles.footerCopy}>
+            <View style={[styles.footerBottomContent, isMobile && styles.footerBottomContentMobile]}>
+              <Text style={[styles.footerCopy, isMobile && styles.footerCopyMobile]}>
                 © {new Date().getFullYear()} CraftTech Studio. All rights reserved.
               </Text>
-              <Text style={styles.footerTech}>
+              <Text style={[styles.footerTech, isMobile && styles.footerTechMobile]}>
                 Designed & built with TypeScript, React Native, and Expo Web.
               </Text>
             </View>
           </View>
         </View>
-      </View>
+      </ResponsiveContainer>
     </View>
   );
 
@@ -707,21 +724,19 @@ const App: React.FC = () => {
      PREMIUM RENDER
   ----------------------------------------------------- */
   return (
-    <SafeAreaView
-      style={[
-        styles.safe,
-        isMobileWeb && { paddingTop: 28}, // try 20–24 if you want more
-      ]}
-    >
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
+      
       {/* PREMIUM HEADER */}
       <Animated.View
         style={[
           styles.header,
-          isMobileWeb && styles.headerMobileWeb,
-          scrolled && styles.headerScrolled,
-          isMobileWeb && { top: 32 },
           {
-            paddingHorizontal: navPadding,
+            height: headerHeight,
+            paddingHorizontal: responsiveValue(16, 24, 40, width),
+          },
+          scrolled && styles.headerScrolled,
+          {
             opacity: headerAnim,
             transform: [
               {
@@ -740,7 +755,7 @@ const App: React.FC = () => {
           activeOpacity={0.8}
           onPress={() => scrollToSection("hero")}
         >
-          <View style={styles.logoContainer}>
+          <View style={[styles.logoContainer, isMobile && styles.logoContainerMobile]}>
             <Image
               source={CRAFTTECH_LOGO}
               style={styles.logoImage}
@@ -748,20 +763,10 @@ const App: React.FC = () => {
             />
           </View>
           <View>
-            <Text
-              style={[
-                styles.logoTitle,
-                { fontSize: isMobile ? 18 : 20 },
-              ]}
-            >
+            <Text style={[styles.logoTitle, isMobile && styles.logoTitleMobile]}>
               CraftTech
             </Text>
-            <Text
-              style={[
-                styles.logoSubtitle,
-                { fontSize: isMobile ? 10 : 11 },
-              ]}
-            >
+            <Text style={[styles.logoSubtitle, isMobile && styles.logoSubtitleMobile]}>
               Digital Product Studio
             </Text>
           </View>
@@ -769,22 +774,29 @@ const App: React.FC = () => {
 
         {/* Center Navigation */}
         {(isTablet || isDesktop) && (
-          <View style={styles.navCenterRow}>
+          <View style={[styles.navCenterRow, isTablet && styles.navCenterRowTablet]}>
             {centerNavItems.map((item) => (
-              <View key={item.key} style={styles.navCenterItem}>
+              <View key={item.key} style={[styles.navCenterItem, isTablet && styles.navCenterItemTablet]}>
                 <TouchableOpacity
                   onPress={() => scrollToSection(item.section)}
                   onLongPress={() => setOpenDropdown(openDropdown === item.key ? null : item.key)}
                   delayLongPress={150}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.navCenterLabel, { fontSize: s(14) }]}>
+                  <Text style={[
+                    styles.navCenterLabel, 
+                    isTablet && styles.navCenterLabelTablet,
+                    { fontSize: s(14) }
+                  ]}>
                     {item.label}
                   </Text>
                 </TouchableOpacity>
 
                 {openDropdown === item.key && (
-                  <View style={styles.dropdownMenu}>
+                  <View style={[
+                    styles.dropdownMenu,
+                    isTablet && styles.dropdownMenuTablet
+                  ]}>
                     {item.children.map((child) => (
                       <TouchableOpacity
                         key={child.label}
@@ -809,14 +821,18 @@ const App: React.FC = () => {
         {/* CTA / Mobile Menu */}
         {isTablet || isDesktop ? (
           <TouchableOpacity
-            style={styles.navCta}
+            style={[styles.navCta, isTablet && styles.navCtaTablet]}
             onPress={() => scrollToSection("contact")}
           >
             <GradientView
               colors={[COLORS.neonSoft, COLORS.neon]}
-              style={styles.navCtaGradient}
+              style={[styles.navCtaGradient, isTablet && styles.navCtaGradientTablet]}
             >
-              <Text style={[styles.navCtaText, { fontSize: s(14) }]}>
+              <Text style={[
+                styles.navCtaText, 
+                isTablet && styles.navCtaTextTablet,
+                { fontSize: s(14) }
+              ]}>
                 Start your project
               </Text>
             </GradientView>
@@ -834,7 +850,7 @@ const App: React.FC = () => {
       </Animated.View>
 
       {/* Mobile Navigation */}
-      {!isTablet && !isDesktop && navOpen && (
+      {isMobile && navOpen && (
         <View style={styles.mobileNav}>
           {mobileNavItems.map((item) => (
             <TouchableOpacity
@@ -848,7 +864,7 @@ const App: React.FC = () => {
             </TouchableOpacity>
           ))}
           <TouchableOpacity
-            style={[styles.navCta, { marginTop: 16 }]}
+            style={[styles.navCta, styles.navCtaMobile]}
             onPress={() => scrollToSection("contact")}
           >
             <GradientView
@@ -879,10 +895,7 @@ const App: React.FC = () => {
             styles.hero,
             {
               height: heroHeight,
-              minHeight: heroHeight,
-              maxHeight: heroHeight,
-              marginTop: 0,
-              marginBottom: isMobile ? 40 : 80,
+              minHeight: Math.max(heroHeight, 400),
             },
           ]}
         >
@@ -894,7 +907,7 @@ const App: React.FC = () => {
             shouldPlay
             isMuted
             isLooping
-            resizeMode={isMobile ? ResizeMode.COVER : ResizeMode.CONTAIN}
+            resizeMode={ResizeMode.COVER}
             onLoad={() => setVideoReady(true)}
             onError={(e) => console.log("Video error:", e)}
           />
@@ -902,7 +915,7 @@ const App: React.FC = () => {
           {/* Dim overlay */}
           <View style={styles.heroOverlay} />
 
-          {/* Content wrapper constrained to 1280px */}
+          {/* Content */}
           <Animated.View
             style={[
               styles.heroContent,
@@ -925,24 +938,11 @@ const App: React.FC = () => {
               },
             ]}
           >
-            <View
-              style={[
-                styles.heroInner,
-                containerStyle,
-                { paddingHorizontal: navPadding },
-              ]}
-            >
-              <View
-                style={[
-                  styles.heroTextContainer,
-                  isMobile && {
-                    alignItems: "center",
-                    alignSelf: "center",
-                    width: "100%",
-                    marginHorizontal: 0,
-                  },
-                ]}
-              >
+            <ResponsiveContainer style={styles.heroInner}>
+              <View style={[
+                styles.heroTextContainer,
+                isMobile && styles.heroTextContainerMobile,
+              ]}>
                 <Text style={[styles.heroKicker, { fontSize: s(12) }]}>
                   DIGITAL PRODUCT STUDIO
                 </Text>
@@ -951,8 +951,8 @@ const App: React.FC = () => {
                   style={[
                     styles.heroTitle,
                     {
-                      fontSize: isMobile ? s(22) : isTablet ? s(30) : s(38),
-                      lineHeight: isMobile ? s(30) : isTablet ? s(38) : s(46),
+                      fontSize: isMobile ? s(28) : isTablet ? s(36) : s(48),
+                      lineHeight: isMobile ? s(36) : isTablet ? s(44) : s(56),
                       textAlign: isMobile ? "center" : "left",
                     },
                   ]}
@@ -963,10 +963,10 @@ const App: React.FC = () => {
                   style={[
                     styles.heroSubtitle,
                     {
-                      fontSize: isMobile ? s(12) : s(16),
-                      lineHeight: isMobile ? s(18) : s(24),
+                      fontSize: isMobile ? s(14) : s(18),
+                      lineHeight: isMobile ? s(20) : s(26),
                       textAlign: isMobile ? "center" : "left",
-                      maxWidth: 560,
+                      maxWidth: 640,
                     },
                   ]}
                 >
@@ -976,16 +976,16 @@ const App: React.FC = () => {
                 <View
                   style={[
                     styles.heroCtaRow,
-                    isMobile && { flexDirection: "column", alignItems: "stretch" },
+                    isMobile && styles.heroCtaRowMobile,
                   ]}
                 >
                   <TouchableOpacity
-                    style={styles.heroPrimaryCta}
+                    style={[styles.heroPrimaryCta, isMobile && styles.heroPrimaryCtaMobile]}
                     onPress={() => scrollToSection("contact")}
                   >
                     <GradientView
                       colors={[COLORS.neonSoft, COLORS.neon]}
-                      style={styles.ctaGradient}
+                      style={[styles.ctaGradient, isMobile && styles.ctaGradientMobile]}
                     >
                       <Text style={[styles.heroPrimaryText, { fontSize: s(16) }]}>
                         Start your project
@@ -994,7 +994,7 @@ const App: React.FC = () => {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.heroSecondaryCta}
+                    style={[styles.heroSecondaryCta, isMobile && styles.heroSecondaryCtaMobile]}
                     onPress={() => scrollToSection("services")}
                   >
                     <Text style={[styles.heroSecondaryText, { fontSize: s(16) }]}>
@@ -1003,11 +1003,11 @@ const App: React.FC = () => {
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </ResponsiveContainer>
           </Animated.View>
 
           {/* Hero Controls */}
-          <View style={styles.heroControls}>
+          <View style={[styles.heroControls, isMobile && styles.heroControlsMobile]}>
             <TouchableOpacity style={styles.heroArrow} onPress={handlePrevSlide}>
               <Text style={styles.heroArrowText}>‹</Text>
             </TouchableOpacity>
@@ -1039,16 +1039,24 @@ const App: React.FC = () => {
           onLayout={handleSectionLayout("services")}
           style={[styles.section, { paddingVertical: sectionPadding }]}
         >
-          <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+          <ResponsiveContainer>
             <ScrollAnimatedView scrollY={scrollY}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isMobile && styles.sectionHeaderMobile]}>
                 <Text style={[styles.sectionLabel, { fontSize: s(14) }]}>
                   SERVICES
                 </Text>
-                <Text style={[styles.sectionTitle, { fontSize: s(32), lineHeight: s(40) }]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  isMobile && styles.sectionTitleMobile,
+                  { fontSize: s(32), lineHeight: s(40) }
+                ]}>
                   End-to-end product delivery
                 </Text>
-                <Text style={[styles.sectionSubtitle, { fontSize: s(16), lineHeight: s(24) }]}>
+                <Text style={[
+                  styles.sectionSubtitle, 
+                  isMobile && styles.sectionSubtitleMobile,
+                  { fontSize: s(16), lineHeight: s(24) }
+                ]}>
                   Strategy, design, and engineering for teams that ship serious software. 
                   We work with the same stacks your in-house engineers already love.
                 </Text>
@@ -1057,7 +1065,7 @@ const App: React.FC = () => {
 
             <StaggeredScrollAnimation
               itemDelay={150}
-              style={styles.servicesGrid}
+              style={[styles.servicesGrid, isMobile && styles.gridSingleColumn]}
               scrollY={scrollY}
             >
               {[
@@ -1080,14 +1088,24 @@ const App: React.FC = () => {
                   icon: "⚡",
                 },
               ].map((service, index) => (
-                <View key={index} style={styles.serviceCard}>
+                <View key={index} style={[
+                  styles.serviceCard, 
+                  isMobile && styles.cardFullWidth,
+                  isTablet && styles.serviceCardTablet,
+                ]}>
                   <View style={styles.serviceHeader}>
                     <Text style={styles.serviceIcon}>{service.icon}</Text>
                     <Text style={styles.serviceNumber}>0{index + 1}</Text>
                   </View>
-                  <Text style={styles.serviceCardTitle}>{service.title}</Text>
-                  <Text style={styles.serviceCardBody}>{service.description}</Text>
-                  <View style={styles.techRow}>
+                  <Text style={[
+                    styles.serviceCardTitle, 
+                    isMobile && styles.textCenterMobile
+                  ]}>{service.title}</Text>
+                  <Text style={[
+                    styles.serviceCardBody, 
+                    isMobile && styles.textCenterMobile
+                  ]}>{service.description}</Text>
+                  <View style={[styles.techRow, isMobile && styles.techRowCenter]}>
                     {service.tech.map((tech) => (
                       <View key={tech} style={styles.techPill}>
                         <Text style={styles.techPillText}>{tech}</Text>
@@ -1097,7 +1115,7 @@ const App: React.FC = () => {
                 </View>
               ))}
             </StaggeredScrollAnimation>
-          </View>
+          </ResponsiveContainer>
         </View>
 
         {/* PREMIUM PROCESS SECTION */}
@@ -1105,14 +1123,22 @@ const App: React.FC = () => {
           onLayout={handleSectionLayout("process")}
           style={[styles.section, { paddingVertical: sectionPadding }]}
         >
-          <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+          <ResponsiveContainer>
             <ScrollAnimatedView scrollY={scrollY}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isMobile && styles.sectionHeaderMobile]}>
                 <Text style={[styles.sectionLabel, { fontSize: s(14) }]}>PROCESS</Text>
-                <Text style={[styles.sectionTitle, { fontSize: s(32), lineHeight: s(40) }]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  isMobile && styles.sectionTitleMobile,
+                  { fontSize: s(32), lineHeight: s(40) }
+                ]}>
                   How we take you from brief to launch
                 </Text>
-                <Text style={[styles.sectionSubtitle, { fontSize: s(16), lineHeight: s(24) }]}>
+                <Text style={[
+                  styles.sectionSubtitle, 
+                  isMobile && styles.sectionSubtitleMobile,
+                  { fontSize: s(16), lineHeight: s(24) }
+                ]}>
                   A simple, transparent flow that keeps founders, PMs, and CTOs in sync while we build.
                 </Text>
               </View>
@@ -1120,7 +1146,7 @@ const App: React.FC = () => {
 
             <StaggeredScrollAnimation
               itemDelay={100}
-              style={styles.processGrid}
+              style={[styles.processGrid, isMobile && styles.gridSingleColumn]}
               scrollY={scrollY}
             >
               {[
@@ -1129,14 +1155,24 @@ const App: React.FC = () => {
                 { step: "03 • Build", title: "Engineering & Development", description: "Sprints with demos, reviews, and code that your in-house team can extend with confidence." },
                 { step: "04 • Launch", title: "Deployment & Growth", description: "Rollout, monitoring, and iterative improvements based on real usage and product metrics." },
               ].map((item, index) => (
-                <View key={index} style={styles.processCard}>
+                <View key={index} style={[
+                  styles.processCard, 
+                  isMobile && styles.cardFullWidth,
+                  isTablet && styles.processCardTablet,
+                ]}>
                   <Text style={styles.processStep}>{item.step}</Text>
-                  <Text style={styles.processCardTitle}>{item.title}</Text>
-                  <Text style={styles.processCardBody}>{item.description}</Text>
+                  <Text style={[
+                    styles.processCardTitle, 
+                    isMobile && styles.textCenterMobile
+                  ]}>{item.title}</Text>
+                  <Text style={[
+                    styles.processCardBody, 
+                    isMobile && styles.textCenterMobile
+                  ]}>{item.description}</Text>
                 </View>
               ))}
             </StaggeredScrollAnimation>
-          </View>
+          </ResponsiveContainer>
         </View>
 
         {/* PREMIUM WORK SECTION */}
@@ -1144,21 +1180,29 @@ const App: React.FC = () => {
           onLayout={handleSectionLayout("work")}
           style={[styles.section, { paddingVertical: sectionPadding }]}
         >
-          <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+          <ResponsiveContainer>
             <ScrollAnimatedView scrollY={scrollY}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isMobile && styles.sectionHeaderMobile]}>
                 <Text style={[styles.sectionLabel, { fontSize: s(14) }]}>WORK</Text>
-                <Text style={[styles.sectionTitle, { fontSize: s(32), lineHeight: s(40) }]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  isMobile && styles.sectionTitleMobile,
+                  { fontSize: s(32), lineHeight: s(40) }
+                ]}>
                   Products we've shipped with teams like yours
                 </Text>
-                <Text style={[styles.sectionSubtitle, { fontSize: s(16), lineHeight: s(24) }]}>
+                <Text style={[
+                  styles.sectionSubtitle, 
+                  isMobile && styles.sectionSubtitleMobile,
+                  { fontSize: s(16), lineHeight: s(24) }
+                ]}>
                   A snapshot of the platforms we design and build for US startups, scaleups, and enterprises.
                 </Text>
               </View>
             </ScrollAnimatedView>
 
             <ScrollAnimatedView delay={200} scrollY={scrollY}>
-              <View style={styles.filterRow}>
+              <View style={[styles.filterRow, isMobile && styles.filterRowMobile]}>
                 {(["all", "web", "mobile", "ecommerce"] as PortfolioCategory[]).map((cat) => {
                   const LABELS: Record<PortfolioCategory, string> = {
                     all: "All Projects",
@@ -1172,6 +1216,8 @@ const App: React.FC = () => {
                       key={cat}
                       style={[
                         styles.filterChip,
+                        isMobile && styles.filterChipMobile,
+                        isTablet && styles.filterChipTablet,
                         active && styles.filterChipActive,
                       ]}
                       onPress={() => setPortfolioFilter(cat)}
@@ -1179,6 +1225,7 @@ const App: React.FC = () => {
                       <Text
                         style={[
                           styles.filterChipText,
+                          isMobile && styles.filterChipTextMobile,
                           active && styles.filterChipTextActive,
                           { fontSize: s(14) },
                         ]}
@@ -1193,11 +1240,15 @@ const App: React.FC = () => {
 
             <StaggeredScrollAnimation
               itemDelay={100}
-              style={styles.portfolioGrid}
+              style={[styles.portfolioGrid, isMobile && styles.gridSingleColumn]}
               scrollY={scrollY}
             >
               {filteredPortfolio.map((item) => (
-                <View key={item.id} style={styles.portfolioCard}>
+                <View key={item.id} style={[
+                  styles.portfolioCard, 
+                  isMobile && styles.cardFullWidth,
+                  isTablet && styles.portfolioCardTablet,
+                ]}>
                   <View style={styles.portfolioImageContainer}>
                     <Image
                       source={{ uri: item.img }}
@@ -1210,8 +1261,11 @@ const App: React.FC = () => {
                     </View>
                   </View>
                   <View style={styles.portfolioContent}>
-                    <Text style={styles.portfolioBody}>{item.description}</Text>
-                    <View style={styles.portfolioMetrics}>
+                    <Text style={[
+                      styles.portfolioBody, 
+                      isMobile && styles.textCenterMobile
+                    ]}>{item.description}</Text>
+                    <View style={[styles.portfolioMetrics, isMobile && styles.metricsCenterMobile]}>
                       {item.metrics.map((metric) => (
                         <View key={metric} style={styles.metricPill}>
                           <Text style={styles.metricPillText}>{metric}</Text>
@@ -1222,7 +1276,7 @@ const App: React.FC = () => {
                 </View>
               ))}
             </StaggeredScrollAnimation>
-          </View>
+          </ResponsiveContainer>
         </View>
 
         {/* PREMIUM TESTIMONIALS SECTION */}
@@ -1230,14 +1284,22 @@ const App: React.FC = () => {
           onLayout={handleSectionLayout("testimonials")}
           style={[styles.section, { paddingVertical: sectionPadding }]}
         >
-          <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+          <ResponsiveContainer>
             <ScrollAnimatedView scrollY={scrollY}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isMobile && styles.sectionHeaderMobile]}>
                 <Text style={[styles.sectionLabel, { fontSize: s(14) }]}>CLIENTS</Text>
-                <Text style={[styles.sectionTitle, { fontSize: s(32), lineHeight: s(40) }]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  isMobile && styles.sectionTitleMobile,
+                  { fontSize: s(32), lineHeight: s(40) }
+                ]}>
                   What partners say
                 </Text>
-                <Text style={[styles.sectionSubtitle, { fontSize: s(16), lineHeight: s(24) }]}>
+                <Text style={[
+                  styles.sectionSubtitle, 
+                  isMobile && styles.sectionSubtitleMobile,
+                  { fontSize: s(16), lineHeight: s(24) }
+                ]}>
                   Real feedback from founders, PMs, and CTOs we've partnered with across the US.
                 </Text>
               </View>
@@ -1245,24 +1307,40 @@ const App: React.FC = () => {
 
             <StaggeredScrollAnimation
               itemDelay={120}
-              style={styles.testimonialsGrid}
+              style={[styles.testimonialsGrid, isMobile && styles.gridSingleColumn]}
               scrollY={scrollY}
             >
               {TESTIMONIALS.map((testimonial, index) => (
-                <View key={testimonial.id} style={styles.testimonialCard}>
+                <View key={testimonial.id} style={[
+                  styles.testimonialCard, 
+                  isMobile && styles.cardFullWidth,
+                  isTablet && styles.testimonialCardTablet,
+                ]}>
                   <Text style={styles.quoteMark}>"</Text>
-                  <Text style={styles.testimonialText}>{testimonial.quote}</Text>
-                  <View style={styles.testimonialFooter}>
-                    <View>
-                      <Text style={styles.testimonialName}>{testimonial.name}</Text>
-                      <Text style={styles.testimonialRole}>{testimonial.role}</Text>
-                      <Text style={styles.testimonialCompany}>{testimonial.company}</Text>
+                  <Text style={[
+                    styles.testimonialText, 
+                    isMobile && styles.textCenterMobile
+                  ]}>{testimonial.quote}</Text>
+                  <View style={[styles.testimonialFooter, isMobile && styles.testimonialFooterMobile]}>
+                    <View style={isMobile && styles.testimonialInfoCenter}>
+                      <Text style={[
+                        styles.testimonialName, 
+                        isMobile && styles.textCenterMobile
+                      ]}>{testimonial.name}</Text>
+                      <Text style={[
+                        styles.testimonialRole, 
+                        isMobile && styles.textCenterMobile
+                      ]}>{testimonial.role}</Text>
+                      <Text style={[
+                        styles.testimonialCompany, 
+                        isMobile && styles.textCenterMobile
+                      ]}>{testimonial.company}</Text>
                     </View>
                   </View>
                 </View>
               ))}
             </StaggeredScrollAnimation>
-          </View>
+          </ResponsiveContainer>
         </View>
 
         {/* PREMIUM CONTACT SECTION */}
@@ -1270,14 +1348,22 @@ const App: React.FC = () => {
           onLayout={handleSectionLayout("contact")}
           style={[styles.section, { paddingVertical: sectionPadding }]}
         >
-          <View style={[containerStyle, { paddingHorizontal: navPadding }]}>
+          <ResponsiveContainer>
             <ScrollAnimatedView scrollY={scrollY}>
-              <View style={styles.sectionHeader}>
+              <View style={[styles.sectionHeader, isMobile && styles.sectionHeaderMobile]}>
                 <Text style={[styles.sectionLabel, { fontSize: s(14) }]}>CONTACT</Text>
-                <Text style={[styles.sectionTitle, { fontSize: s(32), lineHeight: s(40) }]}>
+                <Text style={[
+                  styles.sectionTitle, 
+                  isMobile && styles.sectionTitleMobile,
+                  { fontSize: s(32), lineHeight: s(40) }
+                ]}>
                   Tell us what you're building
                 </Text>
-                <Text style={[styles.sectionSubtitle, { fontSize: s(16), lineHeight: s(24) }]}>
+                <Text style={[
+                  styles.sectionSubtitle, 
+                  isMobile && styles.sectionSubtitleMobile,
+                  { fontSize: s(16), lineHeight: s(24) }
+                ]}>
                   Share a quick summary of your product, your team, and your timeline. 
                   We'll respond with a short Loom and suggested next steps.
                 </Text>
@@ -1287,18 +1373,17 @@ const App: React.FC = () => {
             <View
               style={[
                 styles.contactGrid,
-                isMobile && {
-                  flexDirection: "column",
-                  gap: 24,
-                  marginTop: 16,
-                },
+                isMobile && styles.contactGridMobile,
               ]}
             >
               {/* LEFT: FORM */}
               <ScrollAnimatedView delay={200} scrollY={scrollY}>
-                <View style={styles.contactForm}>
-                  <View style={[styles.formRow, isMobile && { flexDirection: "column" }]}>
-                    <View style={styles.formGroup}>
+                <View style={[
+                  styles.contactForm,
+                  isMobile && styles.contactFormMobile,
+                ]}>
+                  <View style={[styles.formRow, isMobile && styles.formRowMobile]}>
+                    <View style={[styles.formGroup, isMobile && styles.formGroupMobile]}>
                       <Text style={styles.inputLabel}>Name</Text>
                       <TextInput
                         style={styles.input}
@@ -1308,7 +1393,7 @@ const App: React.FC = () => {
                         onChangeText={(v) => handleFormChange("name", v)}
                       />
                     </View>
-                    <View style={styles.formGroup}>
+                    <View style={[styles.formGroup, isMobile && styles.formGroupMobile]}>
                       <Text style={styles.inputLabel}>Work email</Text>
                       <TextInput
                         style={styles.input}
@@ -1322,8 +1407,8 @@ const App: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={[styles.formRow, isMobile && { flexDirection: "column" }]}>
-                    <View style={styles.formGroup}>
+                  <View style={[styles.formRow, isMobile && styles.formRowMobile]}>
+                    <View style={[styles.formGroup, isMobile && styles.formGroupMobile]}>
                       <Text style={styles.inputLabel}>Company</Text>
                       <TextInput
                         style={styles.input}
@@ -1333,7 +1418,7 @@ const App: React.FC = () => {
                         onChangeText={(v) => handleFormChange("company", v)}
                       />
                     </View>
-                    <View style={styles.formGroup}>
+                    <View style={[styles.formGroup, isMobile && styles.formGroupMobile]}>
                       <Text style={styles.inputLabel}>Rough budget (USD)</Text>
                       <TextInput
                         style={styles.input}
@@ -1345,7 +1430,7 @@ const App: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={styles.formGroup}>
+                  <View style={[styles.formGroup, isMobile && styles.formGroupMobile]}>
                     <Text style={styles.inputLabel}>What are you looking to build?</Text>
                     <TextInput
                       style={[styles.input, styles.textarea]}
@@ -1360,7 +1445,7 @@ const App: React.FC = () => {
 
                   <ScrollAnimatedView delay={400} scrollY={scrollY}>
                     <TouchableOpacity
-                      style={styles.submitButton}
+                      style={[styles.submitButton, isMobile && styles.submitButtonMobile]}
                       onPress={handleSubmit}
                     >
                       <GradientView
@@ -1379,14 +1464,23 @@ const App: React.FC = () => {
                 <View
                   style={[
                     styles.contactInfo,
-                    isMobile && { marginBottom: 8 },
+                    isMobile && styles.contactInfoMobile,
                   ]}
                 >
-                  <View style={styles.contactInfoCard}>
-                    <Text style={styles.contactInfoTitle}>
+                  <View style={[
+                    styles.contactInfoCard,
+                    isMobile && styles.contactInfoCardMobile,
+                  ]}>
+                    <Text style={[
+                      styles.contactInfoTitle,
+                      isMobile && styles.textCenterMobile
+                    ]}>
                       Based in Pakistan, building for the US.
                     </Text>
-                    <Text style={styles.contactInfoBody}>
+                    <Text style={[
+                      styles.contactInfoBody,
+                      isMobile && styles.textCenterMobile
+                    ]}>
                       We're a distributed product squad working with founders, product
                       leaders, and CTOs across North America. Expect clear async
                       communication and real momentum.
@@ -1412,7 +1506,7 @@ const App: React.FC = () => {
                 </View>
               </ScrollAnimatedView>
             </View>
-          </View>
+          </ResponsiveContainer>
         </View>
 
         {/* PROFESSIONAL FOOTER */}
@@ -1425,30 +1519,25 @@ const App: React.FC = () => {
 export default App;
 
 /* -----------------------------------------------------
-   PREMIUM STYLES WITH PROFESSIONAL FOOTER
+   PROFESSIONAL STYLES WITH ENHANCED RESPONSIVENESS
 ----------------------------------------------------- */
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: COLORS.bg,
+    minWidth: MIN_WIDTH,
   },
   header: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     zIndex: 100,
     backgroundColor: 'transparent',
-  },
-  // Extra offset only for small-screen web (Android/iOS browsers).
-  // Applied conditionally via `isMobileWeb` so native apps keep
-  // their existing layout.
-  headerMobileWeb: {
-    top: 20,
+    minHeight: 60,
   },
   headerScrolled: {
     backgroundColor: COLORS.bg,
@@ -1463,6 +1552,7 @@ const styles = StyleSheet.create({
   logoRow: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 40,
   },
   logoImage: {
     width: "100%",
@@ -1475,30 +1565,52 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
   },
+  logoContainerMobile: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+  },
   logoTitle: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: "700",
     letterSpacing: -0.5,
+    minWidth: 100,
+  },
+  logoTitleMobile: {
+    fontSize: 18,
   },
   logoSubtitle: {
     color: COLORS.textMuted,
     fontSize: 11,
     letterSpacing: 0.5,
   },
+  logoSubtitleMobile: {
+    fontSize: 10,
+  },
   navCenterRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 32,
   },
+  navCenterRowTablet: {
+    gap: 24,
+  },
   navCenterItem: {
     position: "relative",
+  },
+  navCenterItemTablet: {
+    minWidth: 60,
   },
   navCenterLabel: {
     color: COLORS.text,
     fontSize: 14,
     fontWeight: "500",
     letterSpacing: -0.2,
+    minWidth: 60,
+  },
+  navCenterLabelTablet: {
+    fontSize: 13,
   },
   dropdownMenu: {
     position: "absolute",
@@ -1518,10 +1630,14 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 16,
   },
+  dropdownMenuTablet: {
+    minWidth: 180,
+  },
   dropdownItem: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
+    minHeight: 36,
   },
   dropdownText: {
     color: COLORS.text,
@@ -1531,15 +1647,33 @@ const styles = StyleSheet.create({
   navCta: {
     borderRadius: 12,
     overflow: "hidden",
+    minHeight: 40,
+  },
+  navCtaTablet: {
+    minHeight: 36,
+  },
+  navCtaMobile: {
+    marginTop: 16,
+    width: "100%",
   },
   navCtaGradient: {
     paddingHorizontal: 20,
     paddingVertical: 10,
+    minWidth: 140,
+  },
+  navCtaGradientTablet: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 130,
   },
   navCtaText: {
     color: COLORS.text,
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  navCtaTextTablet: {
+    fontSize: 13,
   },
   burger: {
     padding: 8,
@@ -1557,7 +1691,7 @@ const styles = StyleSheet.create({
   },
   mobileNav: {
     position: "absolute",
-    top: 80,
+    top: 60,
     left: 0,
     right: 0,
     zIndex: 90,
@@ -1576,6 +1710,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.05)",
+    minHeight: 48,
   },
   mobileNavText: {
     color: COLORS.text,
@@ -1586,8 +1721,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 100,
+    paddingTop: 60,
     backgroundColor: COLORS.bg,
+    minWidth: MIN_WIDTH,
   },
 
   // PREMIUM HERO
@@ -1597,6 +1733,7 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     overflow: "hidden",
     marginVertical: 0,
+    minHeight: 400,
   },    
   heroVideo: {
     width: "100%",
@@ -1636,6 +1773,10 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: "transparent",
   },
+  heroTextContainerMobile: {
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
    
   heroKicker: {
     color: COLORS.neon,
@@ -1644,6 +1785,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: "uppercase",
     marginBottom: 16,
+    minHeight: 16,
   },
   heroTitle: {
     color: COLORS.text,
@@ -1651,6 +1793,7 @@ const styles = StyleSheet.create({
     textAlign: "left",
     letterSpacing: -0.5,
     marginBottom: 20,
+    minHeight: 40,
   },
   heroSubtitle: {
     color: COLORS.textMuted,
@@ -1658,24 +1801,41 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     marginBottom: 28,
     opacity: 0.9,
+    minHeight: 24,
   },    
   heroCtaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    minHeight: 50,
+  },
+  heroCtaRowMobile: {
+    flexDirection: "column",
+    gap: 12,
+    width: "100%",
   },
   heroPrimaryCta: {
     borderRadius: 999,
     overflow: "hidden",
+    minWidth: 180,
+  },
+  heroPrimaryCtaMobile: {
+    width: "100%",
   },
   ctaGradient: {
     paddingHorizontal: 24,
     paddingVertical: 12,
+    minHeight: 48,
+  },
+  ctaGradientMobile: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
   heroPrimaryText: {
     color: COLORS.bg,
     fontSize: 15,
     fontWeight: "600",
+    textAlign: "center",
   },
   heroSecondaryCta: {
     borderRadius: 999,
@@ -1684,11 +1844,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     backgroundColor: "rgba(10,15,13,0.85)",
+    minWidth: 140,
+    minHeight: 48,
+  },
+  heroSecondaryCtaMobile: {
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
   heroSecondaryText: {
     color: COLORS.text,
     fontSize: 15,
     fontWeight: "500",
+    textAlign: "center",
   },  
   heroControls: {
     position: "absolute",
@@ -1699,6 +1867,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 32,
+    minHeight: 40,
+  },
+  heroControlsMobile: {
+    paddingHorizontal: 16,
+    bottom: 20,
   },
   heroArrow: {
     width: 40,
@@ -1707,6 +1880,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 40,
+    minHeight: 40,
   },
   heroArrowText: {
     color: COLORS.text,
@@ -1722,20 +1897,30 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "rgba(255,255,255,0.3)",
+    minWidth: 8,
+    minHeight: 8,
   },
   heroDotActive: {
     backgroundColor: COLORS.neon,
     width: 24,
+    minWidth: 24,
   },
 
   // SECTIONS
   section: {
     paddingVertical: 80,
+    minWidth: MIN_WIDTH,
   },
   sectionHeader: {
     marginBottom: 60,
     alignItems: "center",
     textAlign: "center",
+    minHeight: 80,
+  },
+  sectionHeaderMobile: {
+    marginBottom: 40,
+    paddingHorizontal: 8,
+    minHeight: 60,
   },
   sectionLabel: {
     color: COLORS.neon,
@@ -1744,6 +1929,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: "uppercase",
     marginBottom: 12,
+    minHeight: 16,
   },
   sectionTitle: {
     color: COLORS.text,
@@ -1752,6 +1938,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: -1,
     marginBottom: 16,
+    minHeight: 40,
+  },
+  sectionTitleMobile: {
+    fontSize: 28,
+    lineHeight: 36,
   },
   sectionSubtitle: {
     color: COLORS.textMuted,
@@ -1759,6 +1950,31 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 600,
     lineHeight: 24,
+    minHeight: 48,
+  },
+  sectionSubtitleMobile: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+
+  // RESPONSIVE GRID LAYOUTS
+  gridSingleColumn: {
+    flexDirection: "column",
+    flexWrap: "nowrap",
+    alignItems: "stretch",
+    gap: 24,
+  },
+  
+  cardFullWidth: {
+    width: "100%",
+    minWidth: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
+    flex: 0,
+  },
+  
+  textCenterMobile: {
+    textAlign: "center",
   },
 
   // SERVICES
@@ -1767,6 +1983,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 24,
     justifyContent: "center",
+    minWidth: MIN_WIDTH,
   },
   serviceCard: {
     flex: 1,
@@ -1777,12 +1994,19 @@ const styles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 320,
+  },
+  serviceCardTablet: {
+    minWidth: 280,
+    maxWidth: 350,
+    padding: 24,
   },
   serviceHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
+    minHeight: 32,
   },
   serviceIcon: {
     fontSize: 32,
@@ -1797,12 +2021,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 12,
+    minHeight: 28,
   },
   serviceCardBody: {
     color: COLORS.textMuted,
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 20,
+    minHeight: 66,
   },
 
   // PROCESS
@@ -1811,6 +2037,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 24,
     justifyContent: "center",
+    minWidth: MIN_WIDTH,
   },
   processCard: {
     flex: 1,
@@ -1821,23 +2048,32 @@ const styles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 240,
+  },
+  processCardTablet: {
+    minWidth: 260,
+    maxWidth: 300,
+    padding: 24,
   },
   processStep: {
     color: COLORS.neon,
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 8,
+    minHeight: 20,
   },
   processCardTitle: {
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 12,
+    minHeight: 26,
   },
   processCardBody: {
     color: COLORS.textMuted,
     fontSize: 14,
     lineHeight: 22,
+    minHeight: 66,
   },
 
   // WORK
@@ -1847,6 +2083,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
     marginBottom: 40,
+    minHeight: 40,
+  },
+  filterRowMobile: {
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 8,
   },
   filterChip: {
     paddingHorizontal: 20,
@@ -1855,6 +2097,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
+    minHeight: 40,
+  },
+  filterChipMobile: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 36,
+  },
+  filterChipTablet: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
   },
   filterChipActive: {
     backgroundColor: COLORS.neon,
@@ -1864,6 +2116,10 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 14,
     fontWeight: "500",
+    textAlign: "center",
+  },
+  filterChipTextMobile: {
+    fontSize: 13,
   },
   filterChipTextActive: {
     color: COLORS.bg,
@@ -1874,6 +2130,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 24,
     justifyContent: "center",
+    minWidth: MIN_WIDTH,
   },
   portfolioCard: {
     flex: 1,
@@ -1884,11 +2141,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 500,
+  },
+  portfolioCardTablet: {
+    minWidth: 320,
+    maxWidth: 360,
   },
   portfolioImageContainer: {
     position: "relative",
     width: "100%",
     height: 240,
+    minHeight: 240,
   },
   portfolioImage: {
     width: "100%",
@@ -1901,6 +2164,7 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 24,
     backgroundColor: "rgba(0,0,0,0.7)",
+    minHeight: 80,
   },
   portfolioType: {
     color: COLORS.neon,
@@ -1909,25 +2173,33 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 8,
+    minHeight: 16,
   },
   portfolioTitle: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: "700",
+    minHeight: 28,
   },
   portfolioContent: {
     padding: 24,
+    minHeight: 180,
   },
   portfolioBody: {
     color: COLORS.textMuted,
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 20,
+    minHeight: 66,
   },
   portfolioMetrics: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    minHeight: 32,
+  },
+  metricsCenterMobile: {
+    justifyContent: "center",
   },
 
   // TESTIMONIALS
@@ -1936,6 +2208,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 24,
     justifyContent: "center",
+    minWidth: MIN_WIDTH,
   },
   testimonialCard: {
     flex: 1,
@@ -1946,12 +2219,20 @@ const styles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 320,
+  },
+  testimonialCardTablet: {
+    minWidth: 300,
+    maxWidth: 350,
+    padding: 24,
   },
   quoteMark: {
     color: COLORS.neon,
     fontSize: 48,
     fontWeight: "700",
     marginBottom: 16,
+    textAlign: "center",
+    minHeight: 48,
   },
   testimonialText: {
     color: COLORS.text,
@@ -1959,25 +2240,36 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 24,
     fontStyle: "italic",
+    minHeight: 72,
   },
   testimonialFooter: {
     flexDirection: "row",
+    alignItems: "center",
+    minHeight: 60,
+  },
+  testimonialFooterMobile: {
+    justifyContent: "center",
+  },
+  testimonialInfoCenter: {
     alignItems: "center",
   },
   testimonialName: {
     color: COLORS.text,
     fontSize: 16,
     fontWeight: "700",
+    minHeight: 22,
   },
   testimonialRole: {
     color: COLORS.neon,
     fontSize: 14,
     marginTop: 2,
+    minHeight: 20,
   },
   testimonialCompany: {
     color: COLORS.textMuted,
     fontSize: 14,
     marginTop: 2,
+    minHeight: 20,
   },
 
   // CONTACT
@@ -1985,6 +2277,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 48,
+    minWidth: MIN_WIDTH,
+  },
+  contactGridMobile: {
+    flexDirection: "column",
+    gap: 32,
   },
   contactForm: {
     flex: 2,
@@ -1993,20 +2290,35 @@ const styles = StyleSheet.create({
     padding: 32,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 500,
+  },
+  contactFormMobile: {
+    padding: 24,
   },
   formRow: {
     flexDirection: "row",
     gap: 16,
     marginBottom: 16,
+    minHeight: 80,
+  },
+  formRowMobile: {
+    flexDirection: "column",
+    gap: 16,
+    marginBottom: 16,
   },
   formGroup: {
     flex: 1,
+    minHeight: 80,
+  },
+  formGroupMobile: {
+    width: "100%",
   },
   inputLabel: {
     color: COLORS.text,
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
+    minHeight: 20,
   },
   input: {
     backgroundColor: COLORS.bgSoft,
@@ -2017,19 +2329,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    minHeight: 48,
   },
   textarea: {
     height: 120,
     textAlignVertical: "top",
+    minHeight: 120,
   },
   submitButton: {
     borderRadius: 12,
     overflow: "hidden",
     marginTop: 24,
+    minHeight: 56,
+  },
+  submitButtonMobile: {
+    width: "100%",
   },
   submitGradient: {
     paddingVertical: 16,
     alignItems: "center",
+    minHeight: 56,
   },
   submitButtonText: {
     color: COLORS.text,
@@ -2041,17 +2360,24 @@ const styles = StyleSheet.create({
     minWidth: 300,
     paddingHorizontal: 4,
   },  
+  contactInfoMobile: {
+    minWidth: 0,
+    paddingHorizontal: 0,
+    marginTop: 0,
+  },
   contactInfoTitle: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: "700",
     marginBottom: 16,
+    minHeight: 32,
   },
   contactInfoBody: {
     color: COLORS.textMuted,
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 24,
+    minHeight: 48,
   },
   contactInfoBox: {
     backgroundColor: COLORS.card,
@@ -2060,6 +2386,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 120,
   },
   contactInfoCard: {
     backgroundColor: COLORS.card,
@@ -2067,7 +2394,11 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 500,
   },  
+  contactInfoCardMobile: {
+    padding: 20,
+  },
   contactInfoLabel: {
     color: COLORS.neon,
     fontSize: 14,
@@ -2075,6 +2406,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 1,
+    minHeight: 20,
   },
 
   // TECH PILLS & METRICS
@@ -2082,6 +2414,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    minHeight: 32,
+  },
+  techRowCenter: {
+    justifyContent: "center",
   },
   techPill: {
     backgroundColor: COLORS.bgSoft,
@@ -2090,11 +2426,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 28,
+    minWidth: 60,
   },
   techPillText: {
     color: COLORS.textMuted,
     fontSize: 12,
     fontWeight: "500",
+    textAlign: "center",
   },
   metricPill: {
     backgroundColor: COLORS.bgSoft,
@@ -2103,11 +2442,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
+    minHeight: 28,
+    minWidth: 60,
   },
   metricPillText: {
     color: COLORS.neon,
     fontSize: 12,
     fontWeight: "600",
+    textAlign: "center",
   },
 
   // PROFESSIONAL FOOTER STYLES
@@ -2116,6 +2458,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     marginTop: 80,
+    minWidth: MIN_WIDTH,
   },
   footerContent: {
     paddingVertical: 80,
@@ -2126,6 +2469,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     flexWrap: "wrap",
     gap: 48,
+    minHeight: 300,
   },
   footerGridMobile: {
     flexDirection: "column",
@@ -2134,9 +2478,16 @@ const styles = StyleSheet.create({
   footerColumn: {
     flex: 1,
     minWidth: 200,
+    minHeight: 200,
+  },
+  footerColumnMobile: {
+    minWidth: "100%",
+    alignItems: "center",
+    textAlign: "center",
   },
   footerBrand: {
     marginBottom: 0,
+    minHeight: 200,
   },
   footerLogoContainer: {
     width: 48,
@@ -2144,6 +2495,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: "hidden",
+    minWidth: 48,
+    minHeight: 48,
   },
   footerLogoImage: {
     width: "100%",
@@ -2154,6 +2507,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     marginBottom: 8,
+    minHeight: 32,
+  },
+  footerTitleMobile: {
+    fontSize: 22,
+    textAlign: "center",
   },
   footerTagline: {
     color: COLORS.textMuted,
@@ -2161,14 +2519,25 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 24,
     maxWidth: 280,
+    minHeight: 72,
+  },
+  footerTaglineMobile: {
+    fontSize: 14,
+    textAlign: "center",
+    maxWidth: "100%",
   },
   socialLinks: {
     flexDirection: "row",
     gap: 16,
     marginTop: 8,
+    minHeight: 40,
+  },
+  socialLinksMobile: {
+    justifyContent: "center",
   },
   socialLink: {
     paddingVertical: 8,
+    minHeight: 32,
   },
   socialLinkText: {
     color: COLORS.textMuted,
@@ -2180,14 +2549,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 20,
+    minHeight: 24,
+  },
+  footerColumnTitleMobile: {
+    fontSize: 16,
+    textAlign: "center",
   },
   footerLink: {
     paddingVertical: 8,
+    minHeight: 40,
   },
   footerLinkText: {
     color: COLORS.textMuted,
     fontSize: 15,
     fontWeight: "400",
+  },
+  footerLinkTextMobile: {
+    fontSize: 14,
+    textAlign: "center",
   },
   contactHours: {
     color: COLORS.textMuted,
@@ -2195,28 +2574,47 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     opacity: 0.7,
+    minHeight: 20,
+  },
+  contactHoursMobile: {
+    fontSize: 13,
+    textAlign: "center",
   },
   footerCta: {
     borderRadius: 12,
     overflow: "hidden",
     marginTop: 8,
+    minHeight: 48,
+  },
+  footerCtaMobile: {
+    width: "100%",
   },
   footerCtaGradient: {
     paddingHorizontal: 20,
     paddingVertical: 12,
+    minHeight: 48,
   },
   footerCtaText: {
     color: COLORS.text,
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  footerCtaTextMobile: {
+    fontSize: 13,
   },
   footerBottom: {
     marginTop: 60,
+    minHeight: 100,
+  },
+  footerBottomMobile: {
+    marginTop: 40,
   },
   footerDivider: {
     height: 1,
     backgroundColor: COLORS.border,
     marginBottom: 32,
+    minHeight: 1,
   },
   footerBottomContent: {
     width: "100%",
@@ -2224,20 +2622,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
+    minHeight: 60,
   },
   
-  footerBottomMobile: {
-    // you can keep it simple now or even delete this style,
-    // but if you want it, just mirror desktop:
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 4,
+  footerBottomContentMobile: {
+    gap: 8,
   },
   
   footerCopy: {
     color: COLORS.textMuted,
     fontSize: 14,
     textAlign: "center",
+    minHeight: 20,
+  },
+  
+  footerCopyMobile: {
+    fontSize: 13,
   },
   
   footerTech: {
@@ -2245,5 +2645,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
     textAlign: "center",
+    minHeight: 20,
   },  
+  footerTechMobile: {
+    fontSize: 12,
+  },
 });
