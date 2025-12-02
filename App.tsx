@@ -426,7 +426,6 @@ const App: React.FC = () => {
 
   // STATE
   const [sectionPositions, setSectionPositions] = useState<Partial<Record<SectionKey, number>>>({});
-  const [scrolled, setScrolled] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioCategory>("all");
@@ -475,7 +474,6 @@ const App: React.FC = () => {
   ----------------------------------------------------- */
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
-    setScrolled(y > 100);
     scrollY.setValue(y);
   };
 
@@ -727,158 +725,6 @@ const App: React.FC = () => {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.bg} />
       
-      {/* PREMIUM HEADER */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            height: headerHeight,
-            paddingHorizontal: responsiveValue(16, 24, 40, width),
-          },
-          scrolled && styles.headerScrolled,
-          {
-            opacity: headerAnim,
-            transform: [
-              {
-                translateY: headerAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-20, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        {/* Logo */}
-        <TouchableOpacity
-          style={styles.logoRow}
-          activeOpacity={0.8}
-          onPress={() => scrollToSection("hero")}
-        >
-          <View style={[styles.logoContainer, isMobile && styles.logoContainerMobile]}>
-            <Image
-              source={CRAFTTECH_LOGO}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-          </View>
-          <View>
-            <Text style={[styles.logoTitle, isMobile && styles.logoTitleMobile]}>
-              CraftTech
-            </Text>
-            <Text style={[styles.logoSubtitle, isMobile && styles.logoSubtitleMobile]}>
-              Digital Product Studio
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Center Navigation */}
-        {(isTablet || isDesktop) && (
-          <View style={[styles.navCenterRow, isTablet && styles.navCenterRowTablet]}>
-            {centerNavItems.map((item) => (
-              <View key={item.key} style={[styles.navCenterItem, isTablet && styles.navCenterItemTablet]}>
-                <TouchableOpacity
-                  onPress={() => scrollToSection(item.section)}
-                  onLongPress={() => setOpenDropdown(openDropdown === item.key ? null : item.key)}
-                  delayLongPress={150}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[
-                    styles.navCenterLabel, 
-                    isTablet && styles.navCenterLabelTablet,
-                    { fontSize: s(14) }
-                  ]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-
-                {openDropdown === item.key && (
-                  <View style={[
-                    styles.dropdownMenu,
-                    isTablet && styles.dropdownMenuTablet
-                  ]}>
-                    {item.children.map((child) => (
-                      <TouchableOpacity
-                        key={child.label}
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          scrollToSection(child.section);
-                          setOpenDropdown(null);
-                        }}
-                      >
-                        <Text style={[styles.dropdownText, { fontSize: s(13) }]}>
-                          {child.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* CTA / Mobile Menu */}
-        {isTablet || isDesktop ? (
-          <TouchableOpacity
-            style={[styles.navCta, isTablet && styles.navCtaTablet]}
-            onPress={() => scrollToSection("contact")}
-          >
-            <GradientView
-              colors={[COLORS.neonSoft, COLORS.neon]}
-              style={[styles.navCtaGradient, isTablet && styles.navCtaGradientTablet]}
-            >
-              <Text style={[
-                styles.navCtaText, 
-                isTablet && styles.navCtaTextTablet,
-                { fontSize: s(14) }
-              ]}>
-                Start your project
-              </Text>
-            </GradientView>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.burger}
-            onPress={() => setNavOpen((prev) => !prev)}
-          >
-            <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
-            <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
-            <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-
-      {/* Mobile Navigation */}
-      {isMobile && navOpen && (
-        <View style={styles.mobileNav}>
-          {mobileNavItems.map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.mobileNavItem}
-              onPress={() => scrollToSection(item.section)}
-            >
-              <Text style={[styles.mobileNavText, { fontSize: s(16) }]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={[styles.navCta, styles.navCtaMobile]}
-            onPress={() => scrollToSection("contact")}
-          >
-            <GradientView
-              colors={[COLORS.neonSoft, COLORS.neon]}
-              style={styles.navCtaGradient}
-            >
-              <Text style={[styles.navCtaText, { fontSize: s(14) }]}>
-                Start your project
-              </Text>
-            </GradientView>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* MAIN SCROLL CONTENT */}
       <AnimatedScrollView
         ref={scrollRef}
@@ -888,6 +734,158 @@ const App: React.FC = () => {
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
+        {/* PREMIUM HEADER (Now part of scroll content) */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              height: headerHeight,
+              paddingHorizontal: responsiveValue(16, 24, 40, width),
+              marginBottom: responsiveValue(0, 0, 0, width),
+            },
+            {
+              opacity: headerAnim,
+              transform: [
+                {
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {/* Logo */}
+          <TouchableOpacity
+            style={styles.logoRow}
+            activeOpacity={0.8}
+            onPress={() => scrollToSection("hero")}
+          >
+            <View style={[styles.logoContainer, isMobile && styles.logoContainerMobile]}>
+              <Image
+                source={CRAFTTECH_LOGO}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <Text style={[styles.logoTitle, isMobile && styles.logoTitleMobile]}>
+                CraftTech
+              </Text>
+              <Text style={[styles.logoSubtitle, isMobile && styles.logoSubtitleMobile]}>
+                Digital Product Studio
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Center Navigation */}
+          {(isTablet || isDesktop) && (
+            <View style={[styles.navCenterRow, isTablet && styles.navCenterRowTablet]}>
+              {centerNavItems.map((item) => (
+                <View key={item.key} style={[styles.navCenterItem, isTablet && styles.navCenterItemTablet]}>
+                  <TouchableOpacity
+                    onPress={() => scrollToSection(item.section)}
+                    onLongPress={() => setOpenDropdown(openDropdown === item.key ? null : item.key)}
+                    delayLongPress={150}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      styles.navCenterLabel, 
+                      isTablet && styles.navCenterLabelTablet,
+                      { fontSize: s(14) }
+                    ]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {openDropdown === item.key && (
+                    <View style={[
+                      styles.dropdownMenu,
+                      isTablet && styles.dropdownMenuTablet
+                    ]}>
+                      {item.children.map((child) => (
+                        <TouchableOpacity
+                          key={child.label}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            scrollToSection(child.section);
+                            setOpenDropdown(null);
+                          }}
+                        >
+                          <Text style={[styles.dropdownText, { fontSize: s(13) }]}>
+                            {child.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* CTA / Mobile Menu */}
+          {isTablet || isDesktop ? (
+            <TouchableOpacity
+              style={[styles.navCta, isTablet && styles.navCtaTablet]}
+              onPress={() => scrollToSection("contact")}
+            >
+              <GradientView
+                colors={[COLORS.neonSoft, COLORS.neon]}
+                style={[styles.navCtaGradient, isTablet && styles.navCtaGradientTablet]}
+              >
+                <Text style={[
+                  styles.navCtaText, 
+                  isTablet && styles.navCtaTextTablet,
+                  { fontSize: s(14) }
+                ]}>
+                  Start your project
+                </Text>
+              </GradientView>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.burger}
+              onPress={() => setNavOpen((prev) => !prev)}
+            >
+              <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
+              <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
+              <View style={[styles.burgerLine, navOpen && styles.burgerLineOpen]} />
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+
+        {/* Mobile Navigation */}
+        {isMobile && navOpen && (
+          <View style={styles.mobileNav}>
+            {mobileNavItems.map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={styles.mobileNavItem}
+                onPress={() => scrollToSection(item.section)}
+              >
+                <Text style={[styles.mobileNavText, { fontSize: s(16) }]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.navCta, styles.navCtaMobile]}
+              onPress={() => scrollToSection("contact")}
+            >
+              <GradientView
+                colors={[COLORS.neonSoft, COLORS.neon]}
+                style={styles.navCtaGradient}
+              >
+                <Text style={[styles.navCtaText, { fontSize: s(14) }]}>
+                  Start your project
+                </Text>
+              </GradientView>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* PREMIUM HERO SECTION */}
         <View
           onLayout={handleSectionLayout("hero")}
@@ -1528,26 +1526,14 @@ const styles = StyleSheet.create({
     minWidth: MIN_WIDTH,
   },
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 100,
-    backgroundColor: 'transparent',
-    minHeight: 60,
-  },
-  headerScrolled: {
     backgroundColor: COLORS.bg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    minHeight: 60,
+    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   logoRow: {
     flexDirection: "row",
@@ -1690,21 +1676,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neon,
   },
   mobileNav: {
-    position: "absolute",
-    top: 60,
-    left: 0,
-    right: 0,
-    zIndex: 90,
     backgroundColor: COLORS.bg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     paddingHorizontal: 20,
     paddingVertical: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
   },
   mobileNavItem: {
     paddingVertical: 12,
@@ -1721,7 +1697,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 60,
     backgroundColor: COLORS.bg,
     minWidth: MIN_WIDTH,
   },
