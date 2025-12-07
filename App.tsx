@@ -20,7 +20,6 @@ import {
   Dimensions,
   StatusBar,
 } from "react-native";
-import { Video, AVPlaybackSource, ResizeMode } from "expo-av";
 
 const CRAFTTECH_LOGO = require("./assets/crafttech-logo.png");
 
@@ -85,7 +84,7 @@ interface HeroSlide {
   id: string;
   title: string;
   subtitle: string;
-  source: AVPlaybackSource;
+  image: any; // or ImageSourcePropType if you want strict typing
 }
 
 /* -----------------------------------------------------
@@ -113,19 +112,19 @@ const HERO_SLIDES: HeroSlide[] = [
     id: "crafting-premium",
     title: "We craft software that feels premium\nand performs under pressure.",
     subtitle: "From concept to launch, CraftTech partners with US businesses to design and build modern digital products.",
-    source: require("./assets/Herovideo1.mp4"),
+    image: require("./assets/Herovideo1.png"),
   },
   {
     id: "future-architecture",
     title: "Type-safe, AI-ready architectures\nbuilt for the next decade.",
     subtitle: "We use modern TypeScript, cloud, and data practices to future-proof your platforms.",
-    source: require("./assets/Hero2.mp4"),
+    image: require("./assets/Hero2.png"),
   },
   {
     id: "product-squad",
     title: "Your product squad — strategy, design,\nand engineering in one team.",
     subtitle: "A distributed studio from Pakistan building for North American founders, product leaders, and CTOs.",
-    source: require("./assets/Hero3.mp4"),
+    image: require("./assets/Hero3.png"),
   },
 ];
 
@@ -405,7 +404,6 @@ const ResponsiveContainer: React.FC<{
 ----------------------------------------------------- */
 const App: React.FC = () => {
   const scrollRef = useRef<ScrollView | null>(null);
-  const videoRef = useRef<Video | null>(null);
   const { width, height } = useWindowDimensions();
   const s = (size: number) => scaleFont(size, width);
 
@@ -430,7 +428,6 @@ const App: React.FC = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [portfolioFilter, setPortfolioFilter] = useState<PortfolioCategory>("all");
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
 
   // SCROLL-BASED ANIMATIONS
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -897,18 +894,12 @@ const App: React.FC = () => {
             },
           ]}
         >
-          <Video
-            ref={videoRef}
-            key={currentSlide.id}
-            source={currentSlide.source}
-            style={styles.heroVideo}
-            shouldPlay
-            isMuted
-            isLooping
-            resizeMode={ResizeMode.COVER}
-            onLoad={() => setVideoReady(true)}
-            onError={(e) => console.log("Video error:", e)}
-          />
+         <Image
+  key={currentSlide.id}
+  source={currentSlide.image}
+  style={styles.heroVideo}
+  resizeMode="cover"
+/>
 
           {/* Dim overlay */}
           <View style={styles.heroOverlay} />
@@ -1526,6 +1517,8 @@ const styles = StyleSheet.create({
     minWidth: MIN_WIDTH,
   },
   header: {
+    position: "relative",  
+    zIndex: 50,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1676,6 +1669,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neon,
   },
   mobileNav: {
+    position: "relative",
+     zIndex: 40, // sit above hero as well
     backgroundColor: COLORS.bg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -1704,6 +1699,7 @@ const styles = StyleSheet.create({
   // PREMIUM HERO
   hero: {
     position: "relative",
+    zIndex: 0,
     width: "100%",
     borderRadius: 0,
     overflow: "hidden",
